@@ -6,26 +6,6 @@ L’objectif est de séparer clairement :
 - L’**infrastructure Django** (`interface_django/`) — persistence, API, configurations
 
 
-
-##  Structure du projet
-├── interface_django/ # Projet Django (API, config, infra)
-│ ├── account/ # App Django (expose les cas d’usage via Views & DRF)
-│ │ ├── migrations/
-│ │ └── views.py
-│ └── interface_django/ # Paramètres & settings Django
-│
-├── users/ #  Domaine pur (aucune dépendance Django)
-│ ├── core/ # Entités & règles métier
-│ ├── services/ # Cas d’usage (application services)
-│ ├── adapters/ # Implémentations (Repositories, ORM adapters)
-│ └── tests/ # Tests unitaires & d’intégration
-│
-├── setup.py # Config packaging Python
-├── pyproject.toml # Config des tests et outils (pytest, etc.)
-├── users.egg-info/
-├── poc_djang_ddd.egg-info/
-└── README.md
-
 ## clone du poc
 
 ```
