@@ -1,0 +1,25 @@
+[project]
+name = "poc-djang-ddd"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2.5",
+    "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
+    "flake8>=7.3.0",
+    "passlib>=1.7.4",
+    "pyjwt>=2.10.1",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-django>=4.11.1",
+    "sqlalchemy>=2.0.43",
+]
+
+[tool.pytest.ini_options]
+addopts = "-v -s"
+testpaths = ["src/users/tests", "tests"]
+pythonpath = ["src"]
+DJANGO_SETTINGS_MODULE = "interface_django.interface_django.settings"
+python_files = ["tests.py", "test_*.py"]

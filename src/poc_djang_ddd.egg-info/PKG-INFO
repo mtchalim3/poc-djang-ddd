@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: poc-djang-ddd
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: django>=5.2.5
+Requires-Dist: djangorestframework>=3.16.1
+Requires-Dist: djangorestframework-simplejwt>=5.5.1
+Requires-Dist: flake8>=7.3.0
+Requires-Dist: passlib>=1.7.4
+Requires-Dist: pyjwt>=2.10.1
+Requires-Dist: pytest>=8.4.1
+Requires-Dist: pytest-cov>=6.2.1
+Requires-Dist: pytest-django>=4.11.1
+Requires-Dist: sqlalchemy>=2.0.43
