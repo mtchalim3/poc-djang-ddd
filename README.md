@@ -25,6 +25,8 @@ make black
 
 ```
 
+video:
+[Voir la démo du POC](docs/demo.mp4)
 
 
 ##  Points importants
