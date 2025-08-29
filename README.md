@@ -5,7 +5,7 @@ L’objectif est de séparer clairement :
 - Le **domaine métier** (`users/`) — indépendant de Django
 - L’**infrastructure Django** (`interface_django/`) — persistence, API, configurations
 
----
+
 
 ##  Structure du projet
 ├── interface_django/ # Projet Django (API, config, infra)
@@ -26,9 +26,26 @@ L’objectif est de séparer clairement :
 ├── poc_djang_ddd.egg-info/
 └── README.md
 
+## clone du poc
+
+```
+git clone https://github.com/mtchalim3/poc-djang-ddd.git
+
+cd poc-django-ddd
+pip install -r requirements.txt
+# lancer les migrations
+cd interface_django
+python manage.py makemigrations
+python manage.py migrate
+cd ..
+#lancer les tests
+make test
+#formatage
+make black
+
+```
 
 
----
 
 ##  Points importants
 
