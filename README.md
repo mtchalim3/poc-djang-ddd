@@ -599,8 +599,255 @@ def test_register_duplicate_user(service):
 
 ---
 
+## Service Layer + Unit of Work (UoW) dans DDD
+Qu’est-ce que le Unit of Work ?
+
+Le Unit of Work est un pattern qui garantit que toutes les opérations sur la base de données sont exécutées dans un seul contexte transactionnel.
+
+Il regroupe toutes les modifications (création, mise à jour, suppression) dans une transaction.
+
+Si une erreur survient, il permet de rollback toutes les modifications.
+
+Il est particulièrement utile pour les use cases complexes qui touchent plusieurs entités à la fois.
+
+Dans notre architecture DDD avec Django, le Unit of Work sert de couche entre le Service Layer et les Repositories.
+
+si le repository patterns perme de faire la persistence 
+UOW permet d'assurer le principe ACID sur la base de donnée
+exemple:
+```
+from abc import ABC, abstractmethod
+from users.adapters.repository import AbstractUserRepository, InMemoryRepository
+from users.adapters.django_repository import DjangoUserRepository
 
 
+class AbstractUnitOfWork(ABC):
+    users: AbstractUserRepository
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.rollback()
+
+    @abstractmethod
+    def commit(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def rollback(self):
+        raise NotImplementedError
+
+
+class DjangoUnitOfWork(AbstractUnitOfWork):
+    def __init__(self):
+        self.users = DjangoUserRepository()
+
+    def __enter__(self):
+        return super().__enter__()
+
+    def __exit__(self, *args):
+        super().__exit__(*args)
+
+    def commit(self):
+       
+        pass
+           
+
+    def rollback(self):
+   
+        pass
+
+
+class InMemoryUnitOfWork(AbstractUnitOfWork):
+    def __init__(self):
+        self.users = InMemoryRepository()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass  # rien à rollback
+
+    def commit(self):
+        pass  # pas de DB réelle
+
+    def rollback(self):
+        pass
+
+#ici nous ne gerons pas les commit et roolback car django le gere bien deja maios demain vous travailler avec sqlalchemy ou autre vous devez ajouter self.commit() et self.rollback()
+```
+le service layer devient:
+
+```
+import hashlib
+from users.core.models import User
+from users.core.exceptions import UserAlreadyExists, UserNotFound
+from users.core.commands import RegisterUserCommand
+from users.adapters.repository import AbstractUserRepository
+from users.services.unit_of_work import AbstractUnitOfWork
+class UserService:
+    def __init__(self, uow: AbstractUnitOfWork):
+        self.uow = uow
+
+    # ---------- Use Case 1 : Register ----------
+    def register(self, cmd: RegisterUserCommand) -> User:
+        with self.uow:
+            if self.uow.users.exists(cmd.email):
+                raise UserAlreadyExists(
+                    f"Un utilisateur avec l'email {cmd.email} existe déjà."
+                )
+
+            password_hash = self._hash_password(cmd.password)
+            user = User(email=cmd.email)
+            user.password_hash = password_hash
+
+            saved_user = self.uow.users.save(user)
+      
+            return saved_user
+
+    # ---------- Use Case 2 : Authenticate ----------
+    def authenticate(self, email: str, password: str) -> User:
+        with self.uow:
+            user = self.uow.users.get_by_email(email)
+            if not user:
+                raise UserNotFound("Utilisateur introuvable")
+
+            if user.password_hash != self._hash_password(password):
+                raise ValueError("Mot de passe incorrect")
+
+            # Pas besoin de commit ici, juste lecture
+            return user
+
+    # ---------- Utils ----------
+    def _hash_password(self, password: str) -> str:
+        return hashlib.sha256(password.encode()).hexdigest()
+```
+
+Parfait ! Dans ton **README.md**, tu peux introduire la **couche Infrastructure** de manière claire et pédagogique pour les autres développeurs. L’idée est de montrer **son rôle dans l’architecture DDD**, comment elle se connecte au **Domain**, et donner un exemple concret (ici avec Django). Voici un exemple de texte que tu peux mettre dans ton README :
+
+---
+
+## 📦 Infrastructure Layer
+
+La **couche Infrastructure** est responsable de tout ce qui est lié aux **technologies externes**, à la **persistance des données** et aux **interfaces avec le monde extérieur**. Elle ne contient **aucune logique métier**, mais fournit des **adaptateurs** pour que le domaine puisse interagir avec le système (base de données, API, fichiers, services externes…).
+
+### 🔑 Objectifs principaux
+
+1. **Connexion avec la base de données**
+
+   * Gérer le stockage et la récupération des entités du domaine.
+   * Fournir des **repositories** conformes aux interfaces du domaine (`AbstractUserRepository`).
+
+2. **Isolation du domaine**
+
+   * La couche **domain** ne connaît pas Django ou d’autres frameworks.
+   * L’infrastructure adapte le domaine à la technologie choisie.
+
+3. **Support pour les Use Cases / Services**
+
+   * Permet aux services applicatifs (`UserService`) d’utiliser les repositories sans savoir comment les données sont stockées.
+   * Exemple : la même interface peut être utilisée pour **tests unitaires** avec `InMemoryRepository` ou en production avec `DjangoUserRepository`.
+
+4. **Gestion des transactions**
+
+   * Les unités de travail (`UnitOfWork`) sont implémentées ici pour garantir la cohérence de la base.
+
+---
+
+### 🛠 Exemple avec Django
+
+**Modèle Django qui sert d’adaptateur pour le domaine :**
+
+```python
+from django.db import models
+import uuid
+from users.core.models import User
+
+class UserModel(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "users"
+
+    # --- MAPPING vers le domaine ---
+    def to_domain(self) -> User:
+        user = User(
+            email=self.email,
+            password=self.password,
+            is_active=self.is_active,
+            created_at=self.created_at,
+        )
+        user.id = str(self.id)
+        return user
+
+    @classmethod
+    def from_domain(cls, user: User) -> "UserModel":
+        return cls(
+            id=user.id,
+            email=user.email,
+            password=user.password,
+            is_active=user.is_active,
+        )
+```
+
+**Repository Django (Infrastructure) :**
+
+```python
+from users.core.models import User
+from interface_django.account.models import UserModel
+from users.adapters.repository import AbstractUserRepository
+from typing import Optional, List
+
+
+class DjangoUserRepository(AbstractUserRepository):
+    def exists(self, email: str) -> bool:
+        return UserModel.objects.filter(email=email).exists()
+
+    def _get_by_email(self, email: str) -> Optional[User]:
+        obj = UserModel.objects.filter(email=email).first()
+        return obj.to_domain() if obj else None
+
+    def _get_by_id(self, user_id: str) -> Optional[User]:
+        obj = UserModel.objects.filter(id=user_id).first()
+        return obj.to_domain() if obj else None
+
+    def _list(self) -> List[User]:
+        return [u.to_domain() for u in UserModel.objects.all()]
+
+    def _save(self, user: User) -> User:
+        obj = UserModel.from_domain(user)
+        obj.save()
+        return obj.to_domain()
+
+    def _exists(self, email: str) -> bool:
+        return self.exists(email)
+
+```
+
+**Utilisation dans un service :**
+
+```python
+from users.services.user_services import UserService
+from users.adapters.django_repository import DjangoUserRepository
+
+repo = DjangoUserRepository()
+service = UserService(repo)
+
+user = service.register(RegisterUserCommand(email="a@example.com", password="123"))
+```
+
+---
+
+ **À retenir** :
+
+* La couche **Infrastructure** ne fait que **mapper et persister** les entités du domaine.
+* Toute la logique métier reste dans la couche **Domain** (`User`, `Email`, etc.).
+* Cela permet de changer facilement de technologie ou de base de données sans toucher au cœur métier.
 
 
 Ce mini POC illustre comment appliquer une architecture **Domain Driven Design (DDD)** avec **Django**.  
