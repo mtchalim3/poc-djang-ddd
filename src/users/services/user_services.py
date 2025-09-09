@@ -4,6 +4,8 @@ from users.core.exceptions import UserAlreadyExists, UserNotFound
 from users.core.commands import RegisterUserCommand
 from users.adapters.repository import AbstractUserRepository
 from users.services.unit_of_work import AbstractUnitOfWork
+
+
 class UserService:
     def __init__(self, uow: AbstractUnitOfWork):
         self.uow = uow
@@ -21,7 +23,7 @@ class UserService:
             user.password_hash = password_hash
 
             saved_user = self.uow.users.save(user)
-      
+
             return saved_user
 
     # ---------- Use Case 2 : Authenticate ----------

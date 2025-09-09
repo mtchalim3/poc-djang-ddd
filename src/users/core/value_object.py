@@ -2,14 +2,17 @@ import re
 from dataclasses import dataclass
 import uuid
 
-from users.core.exceptions import InvalidPasswordException, InvalidOperation, InvalidEmailException
+from users.core.exceptions import (
+    InvalidPasswordException,
+    InvalidOperation,
+    InvalidEmailException,
+)
 
 
 @dataclass(frozen=True)
 class Email:
     value: str
 
-    
     def __post_init__(self):
         if not isinstance(self.value, str):
             raise TypeError("Email must be a string")
@@ -30,9 +33,6 @@ class Email:
 
     def __str__(self) -> str:
         return self.value
-
-
-
 
 
 @dataclass(frozen=True)

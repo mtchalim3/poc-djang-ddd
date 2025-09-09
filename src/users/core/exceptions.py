@@ -5,10 +5,14 @@ class UserAlreadyExists(Exception):
 class UserNotFound(Exception):
     pass
 
+
 class InvalidEmailException(Exception):
     pass
-class  InvalidOperation(Exception):
+
+
+class InvalidOperation(Exception):
     pass
+
 
 class InvalidPasswordException(Exception):
     pass

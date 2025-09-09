@@ -32,12 +32,11 @@ class DjangoUnitOfWork(AbstractUnitOfWork):
         super().__exit__(*args)
 
     def commit(self):
-       
+
         pass
-           
 
     def rollback(self):
-   
+
         pass
 
 

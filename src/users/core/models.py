@@ -9,7 +9,6 @@ class User:
     Toute la logique de validation et règles métier devrait être ici.
     """
 
-
     def __init__(
         self,
         email: Email,
@@ -34,6 +33,7 @@ class User:
 
     def __hash__(self):
         return hash(self.id)  # mieux basé sur l'id unique que l'email
+
     @property
     def email(self) -> str:
         return str(self._email)
@@ -44,9 +44,6 @@ class User:
             self._email = value
         else:
             self._email = Email(value)
-
-
-
 
     def activate(self):
         self.is_active = True
