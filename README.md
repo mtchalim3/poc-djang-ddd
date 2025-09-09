@@ -315,6 +315,90 @@ class DjangoUserRepository(AbstractUserRepository):
 
 ```
 
+Test unitaire repository patterns
+
+```
+import pytest
+from users.core.models import User
+from users.adapters.repository import InMemoryRepository
+
+
+@pytest.fixture
+def repo():
+    return InMemoryRepository()
+
+
+def test_save_and_get_by_id(repo):
+    user = User(email="test@example.com")
+    saved_user = repo.save(user)
+
+    assert saved_user.email == "test@example.com"
+    assert repo.get_by_id(saved_user.id) == saved_user
+
+
+def test_exists_and_get_by_email(repo):
+    user = User(email="exists@example.com")
+    repo.save(user)
+
+    assert repo.exists("exists@example.com") is True
+    assert repo.exists("notfound@example.com") is False
+    assert repo.get_by_email("exists@example.com") == user
+
+
+def test_list_users(repo):
+    u1 = User(email="a@example.com")
+    u2 = User(email="b@example.com")
+    repo.save(u1)
+    repo.save(u2)
+
+    users = repo.list()
+    assert len(users) == 2
+    assert u1 in users and u2 in users
+
+
+```
+Tests d'integration django
+
+```
+
+import pytest
+from users.adapters.django_repository import DjangoUserRepository
+from users.core.models import User
+from interface_django.account.models import UserModel
+
+pytestmark = pytest.mark.django_db
+
+
+def test_save_and_get_user():
+    repo = DjangoUserRepository()
+    user = User(email="django@example.com", password="123456")
+
+    saved_user = repo.save(user)
+
+    assert saved_user.email == "django@example.com"
+    assert repo.exists("django@example.com")
+
+
+def test_get_by_email_returns_user():
+    repo = DjangoUserRepository()
+    user = User(email="test2@example.com", password="pwd")
+    repo.save(user)
+
+    fetched = repo.get_by_email("test2@example.com")
+
+    assert fetched is not None
+    assert fetched.email == "test2@example.com"
+
+
+def test_list_users():
+    repo = DjangoUserRepository()
+    repo.save(User(email="u1@example.com", password="p1"))
+    repo.save(User(email="u2@example.com", password="p2"))
+
+    users = repo.list()
+    assert len(users) == 2
+
+```
 Résultat :
 
 Dans les tests unitaires : on passes InMemoryUserRepository() → rapide, sans DB.
@@ -327,7 +411,193 @@ Le domaine n’a aucune idée de ce qu’il y a derrière.
 ## Service layer
 
 
+Parfait ! Voici comment tu peux documenter **le Service Layer** dans ton README ou dans un tutoriel pour ton POC, en gardant le style DDD et en utilisant ton exemple `UserService`.
 
+---
+
+# 🛠 Service Layer – Orchestration des Use Cases
+
+## 1. Définition
+
+Le **Service Layer** (ou **Application Layer**) est la couche qui :
+
+1. **Orchestre les cas d’usage (use cases)** : il manipule les entités du domaine pour exécuter un scénario métier complet.
+2. **Coordonne le domaine et les repositories** : il ne connaît pas la DB directement, il interagit via des interfaces abstraites.
+3. **Applique les règles métier** déjà définies dans les entités, mais sans les dupliquer.
+
+> Le Service Layer ne contient pas de logique métier complexe lui-même, il orchestre les entités et leur comportement.
+
+---
+
+## 2. Fonctionnement
+
+1. **Prendre une commande (Command)** : un objet qui encapsule les données nécessaires au use case (ex: `RegisterUserCommand`).
+2. **Vérifier les règles métier** via les entités ou les exceptions (ex: vérifier si l’utilisateur existe déjà).
+3. **Orchestrer le workflow** : créer ou modifier des entités.
+4. **Appeler le Repository** pour persister ou récupérer des données.
+5. **Retourner le résultat** sous forme d’entité ou de DTO.
+
+---
+
+## 3. Bonnes pratiques
+
+* Chaque use case correspond à une **méthode du service** (ex: `register`, `authenticate`).
+* Injecter les **repositories via le constructeur** pour pouvoir remplacer facilement la DB par un repository en mémoire (tests unitaires).
+* Les méthodes doivent rester **cohérentes et simples** : pas de logique métier complexe dedans.
+* Toujours travailler avec les **entités du domaine** et jamais avec des objets techniques comme un modèle Django.
+
+---
+
+## 4. Exemple concret – `UserService`
+
+```python
+import hashlib
+from users.core.models import User
+from users.core.exceptions import UserAlreadyExists, UserNotFound
+from users.core.commands import RegisterUserCommand
+from users.adapters.repository import AbstractUserRepository
+
+
+class UserService:
+    def __init__(self, repo: AbstractUserRepository):
+        self.repo = repo
+
+    def register(self, cmd: RegisterUserCommand) -> User:
+        """Créer un nouvel utilisateur"""
+        if self.repo.exists(cmd.email):
+            raise UserAlreadyExists(
+                f"Un utilisateur avec l'email {cmd.email} existe déjà."
+            )
+
+        # Hash simple du mot de passe ( pour POC uniquement, pas en prod !)
+        password_hash = self._hash_password(cmd.password)
+
+        user = User(email=cmd.email)
+        user.password_hash = password_hash  # on enrichit l'entity avec le hash
+        return self.repo.save(user)
+
+    def authenticate(self, email: str, password: str) -> User:
+        """Vérifier login/password"""
+        user = self.repo.get_by_email(email)
+        if not user:
+            raise UserNotFound("Utilisateur introuvable")
+
+        if user.password_hash != self._hash_password(password):
+            raise ValueError("Mot de passe incorrect")
+
+        return user
+
+    # ---------- Utils ----------
+    def _hash_password(self, password: str) -> str:
+        return hashlib.sha256(password.encode()).hexdigest()
+
+```
+
+---
+
+## 5. Exemple d’utilisation dans l’application
+
+```python
+# Création d'un repository (mémoire ou DB)
+repo = InMemoryUserRepository()  # pour les tests
+service = UserService(repo)
+
+# 1. Enregistrer un nouvel utilisateur
+cmd = RegisterUserCommand(email="alice@example.com", password="Secret123!")
+user = service.register(cmd)
+print(user)
+
+# 2. Authentification
+auth_user = service.authenticate("alice@example.com", "Secret123!")
+print(auth_user)
+```
+
+Tests Unitaire inmemrory
+```
+import pytest
+from users.core.commands import RegisterUserCommand
+from users.services.user_services import UserService
+from users.core.exceptions import UserAlreadyExists, UserNotFound
+from users.adapters.repository import InMemoryRepository
+
+
+@pytest.fixture
+def service():
+    return UserService(InMemoryRepository())
+
+
+def test_register_user(service):
+    cmd = RegisterUserCommand(email="test@example.com", password="secret")
+    user = service.register(cmd)
+
+    assert user.email == "test@example.com"
+    assert hasattr(user, "password_hash")
+
+
+def test_register_duplicate_user(service):
+    cmd = RegisterUserCommand(email="dup@example.com", password="secret")
+    service.register(cmd)
+    with pytest.raises(UserAlreadyExists):
+        service.register(cmd)
+
+
+def test_authenticate_success(service):
+    cmd = RegisterUserCommand(email="login@example.com", password="mypassword")
+    user = service.register(cmd)
+
+    authenticated = service.authenticate("login@example.com", "mypassword")
+    assert authenticated == user
+
+
+def test_authenticate_fail(service):
+    cmd = RegisterUserCommand(email="fail@example.com", password="rightpass")
+    service.register(cmd)
+
+    with pytest.raises(ValueError):  # mauvais password
+        service.authenticate("fail@example.com", "wrongpass")
+
+    with pytest.raises(UserNotFound):  # mauvais email
+        service.authenticate("notfound@example.com", "whatever")
+
+```
+Tests d'inegration django
+
+```
+import pytest
+from users.services.user_services import UserService
+from users.adapters.django_repository import DjangoUserRepository
+from users.core.commands import RegisterUserCommand
+from users.core.exceptions import UserAlreadyExists, UserNotFound
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def service():
+    return UserService(DjangoUserRepository())
+
+
+def test_register_user(service):
+    cmd = RegisterUserCommand(email="new@example.com", password="mypassword")
+    user = service.register(cmd)
+    assert user.email == "new@example.com"
+
+
+def test_register_duplicate_user(service):
+    cmd = RegisterUserCommand(email="dup@example.com", password="secret")
+    service.register(cmd)
+    with pytest.raises(UserAlreadyExists):
+        service.register(cmd)
+
+```
+
+ Avec cette architecture :
+>
+> * Le **Service Layer** orchestre la logique métier sans connaître la DB.
+> * Le **Domain Layer** reste indépendant et testable.
+> * Le code est **testable, maintenable et évolutif**.
+
+---
 
 
 
