@@ -1,4 +1,0 @@
-__init__
-interface_django
-setup
-users
