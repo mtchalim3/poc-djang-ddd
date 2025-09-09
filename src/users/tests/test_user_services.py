@@ -3,11 +3,12 @@ from users.core.commands import RegisterUserCommand
 from users.services.user_services import UserService
 from users.core.exceptions import UserAlreadyExists, UserNotFound
 from users.adapters.repository import InMemoryRepository
+from users.services.unit_of_work import InMemoryUnitOfWork
 
 
 @pytest.fixture
 def service():
-    return UserService(InMemoryRepository())
+    return UserService(InMemoryUnitOfWork())
 
 
 def test_register_user(service):
