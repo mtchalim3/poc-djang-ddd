@@ -1,5 +1,173 @@
 #  POC Django + Domain Driven Design (DDD)
 
+## Introduction et explication du fonctionnement du DDD
+
+
+## Introduction au Domain Driven Design (DDD)
+Le Domain Driven Design est une approche de développement logiciel qui place le domaine métier au cœur de la conception. L'objectif est de créer un logiciel qui reflète précisément les concepts métier et les processus de l'organisation.
+
+## Les trois couches principales en DDD :
+### Domain Layer - Le cœur métier :
+ Contient les entités, value objects, règles métier et services de domaine
+
+### Application Layer - Orchestration :
+ Coordonne les use cases et fait le lien entre le domaine et l'infrastructure
+
+### Infrastructure Layer - Détails techniques :
+Persistence, APIs, frameworks (Django dans notre cas)
+
+## Structure du projet:
+```
+poc-django-ddd/
+├── src/
+│   ├── users/                       # DOMAIN LAYER - Cœur métier
+│   │   ├── core/                   # Modèles métier purs
+│   │   │   ├── models.py           # Entités et Value Objects
+│   │   │   ├── exceptions.py       # Exceptions métier
+│   │   │   └── commands.py         # Commandes (CQRS)
+│   │   ├── services/               # SERVICES - Logique métier
+│   │   │   └── user_services.py    # Services de domaine
+│   │   └── adapters/               # ADAPTERS - Interfaces techniques
+│   │       └── repository.py       # Interface de repository
+│   └── interface_django/           # INFRASTRUCTURE LAYER - Django
+│       ├── account/                # App Django
+│       │   ├── models.py           # Modèles Django (persistence)
+│       │   ├── views.py            # Contrôleurs API
+│       │   └── urls.py             # Routes API
+│       └── interface_django/
+│           └── settings.py         # Configuration Django
+├── tests/                          # Tests de toutes les couches
+│   ├── unit/                       # Tests unitaires
+│   └── integration/                # Tests d'intégration
+├── requirements.txt
+├── pyproject.toml
+└── README.md
+```
+
+## Explication Détaillée de Chaque Couche
+### 1. Domain Layer - Le Cœur Métier
+
+Le Domain Layer est le cœur métier d’une application, c’est là où réside toute la logique métier et les règles de l’organisation.
+Il doit être indépendant de toute technologie, c’est-à-dire sans dépendances à Django, Flask, SQLAlchemy, PostgreSQL, Redis, ou toute autre librairie externe.
+
+Caractéristiques principales :
+
+Isolation totale :
+
+Aucune dépendance à l’infrastructure (DB, frameworks web, API externes).
+
+Écrit en Python pur dans notre cas.
+
+Règles métier :
+
+Les invariants (exemple : un email valide, un mot de passe doit respecter certaines règles).
+
+Les règles de sécurité (exemple : un utilisateur inactif ne peut pas se connecter).
+
+Les comportements métier (exemple : activer/désactiver un compte, valider un OTP, gérer des droits d’accès).
+
+Éléments du Domain Layer :
+
+Entités (Entities) : objets qui possèdent une identité unique (exemple : User, Order, Invoice).
+
+Valeurs (Value Objects) : objets sans identité propre, mais définis uniquement par leurs attributs (exemple : Email, Money, Address).
+
+Services de domaine : logique métier complexe qui ne se rattache pas directement à une entité (exemple : génération d’un token d’authentification, validation de rôles).
+
+Événements de domaine (Domain Events) : événements significatifs du métier (exemple : UserRegistered, PasswordChanged).
+
+Indépendance :
+
+Tu pourrais exécuter le Domain Layer tout seul, sans base de données ni serveur web.
+
+Si demain tu passes de Django à FastAPI, ou de PostgreSQL à MongoDB → le domaine reste inchangé.
+
+NB: dans le domaine layer on oublie tous framework base de donnée ontravail en python pur c'est ici que toute les bonne pratique de programmation intervienne c'est ici que les tests unitaire ont lieu
+
+users/core/models.py - Entités et Value Objects
+
+```
+import uuid
+from datetime import datetime
+import re
+
+class User:
+    """
+    ENTITÉ MÉTIER - Représente un utilisateur dans le domaine
+    Pure Python, aucune dépendance à Django
+    """
+    
+    # Expression régulière pour validation email
+    EMAIL_REGEX = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+
+    def __init__(self, email: str, password="Password123@#", is_active: bool = True, created_at: datetime = None):
+        # Identité unique de l'entité
+        self.id = str(uuid.uuid4())
+        self.password = password
+        self.email = self._validate_email(email)  # Validation métier
+        self.is_active = is_active
+        self.created_at = created_at or datetime.utcnow()
+        self.seen = set()  # Exemple de collection métier
+
+    # Méthodes métier - comportements de l'entité
+    def _validate_email(self, email: str) -> str:
+        """RÈGLE MÉTIER: Validation du format email"""
+        if not re.match(self.EMAIL_REGEX, email):
+            raise ValueError("Email invalide")
+        return email.lower().strip()
+
+    def activate(self):
+        """COMPORTEMENT MÉTIER: Activer un utilisateur"""
+        self.is_active = True
+
+    def deactivate(self):
+        """COMPORTEMENT MÉTIER: Désactiver un utilisateur"""
+        self.is_active = False
+
+    # Méthodes techniques
+    def __repr__(self):
+        return f"User(id={self.id}, email={self.email}, is_active={self.is_active}, created_at={self.created_at})"
+
+    def __eq__(self, value):
+        """IDENTITÉ: Deux users sont égaux s'ils ont le même ID"""
+        if isinstance(value, User):
+            return self.id == value.id
+        return False
+
+    def __hash__(self):
+        """HASH: Basé sur l'ID unique"""
+        return hash(self.id)
+```
+users/core/exceptions.py - Exceptions Métier
+
+```
+class UserAlreadyExists(Exception):
+    pass
+
+
+class UserNotFound(Exception):
+    pass
+
+
+```
+
+### tests unitaire dans le domaine layer
+#### test de création d'un nouveau utilsateur
+ ```
+ # nous testons ici le bon cas c'est a dire lorsque les informations sont bien forunie
+ 
+ from users.core.models import User
+
+
+def test_user_model():
+    user = User(email="l9v3h@example.com", is_active=True)
+    print(user)
+    assert user.email == "l9v3h@example.com"
+    assert user.is_active
+
+ ```
+
+
 Ce mini POC illustre comment appliquer une architecture **Domain Driven Design (DDD)** avec **Django**.  
 L’objectif est de séparer clairement :
 - Le **domaine métier** (`users/`) — indépendant de Django
