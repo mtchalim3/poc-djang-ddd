@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from users.core.commands import RegisterUserCommand
 from users.services.user_services import UserService
-from users.adapters.repository import DjangoUserRepository
+from users.adapters.django_repository import DjangoUserRepository
+from users.services.unit_of_work import DjangoUnitOfWork
 
 repo = DjangoUserRepository()
-service = UserService(repo)
+service = UserService(DjangoUnitOfWork())
 
 
 class RegisterUserView(APIView):

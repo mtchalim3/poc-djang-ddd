@@ -1,5 +1,5 @@
 from users.core.models import User
-from interface_django.account.models import UserModel
+from account.models import UserModel
 from users.adapters.repository import AbstractUserRepository
 from typing import Optional, List
 

@@ -1,7 +1,7 @@
 import pytest
 from users.adapters.django_repository import DjangoUserRepository
 from users.core.models import User
-from interface_django.account.models import UserModel
+from account.models import UserModel
 
 pytestmark = pytest.mark.django_db
 
