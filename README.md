@@ -167,6 +167,171 @@ def test_user_model():
 
  ```
 
+### repository patterns
+
+Définition du Repository Pattern
+
+En DDD, le Repository est un service technique qui fait l’intermédiaire entre le domaine et la persistence (ex: base de données, fichiers, cache, API externe).
+
+ En clair :
+
+Le domaine ne connaît pas la base de données.
+
+Le domaine demande juste au repository : "Donne-moi cet utilisateur", "Sauvegarde cet utilisateur".
+
+Le repository se charge d’aller dans la DB (ou autre système) et de retourner un objet du domaine (User), pas un objet technique (UserModel Django).
+
+ Rôle du Repository
+
+Abstraction de la persistence :
+Le domaine ne doit pas dépendre du choix de la DB ou de l’ORM.
+(Aujourd’hui tu utilises Django ORM, demain tu peux passer à SQLAlchemy ou MongoDB sans changer le domaine.)
+
+Interface métier simple :
+Le repository expose des méthodes simples comme add, get_by_id, get_by_email, list, exists.
+
+Retourner des objets du domaine uniquement :
+Jamais d’objets Django ORM ou SQLAlchemy dans le domaine, toujours des entités User.
+
+ Pourquoi deux versions ?
+
+InMemoryRepository : utilisé pour les tests unitaires du domaine → rapide, pas besoin de base de données.
+
+DjangoUserRepository : utilisé dans l’infrastructure → implémentation réelle qui utilise l’ORM Django.
+
+Les deux implémentent la même interface AbstractUserRepository, donc le domaine peut travailler avec l’un ou l’autre sans rien changer.
+NB: le repository pattern ne doit avoir en éalité quye deux fonction ) loa rigueur 3 car le repo ne fait ajouter(add) ou retoruner (get) des données dans la base de données
+
+ Exemple simplifié : deux fonctions essentielles
+
+Tu disais qu’un repository doit au moins avoir deux fonctions : add et get.
+Exactement !
+On peut réduire ça au minimum vital :
+
+
+```
+from abc import ABC, abstractmethod
+from typing import Optional, List
+from users.core.models import User
+from typing import Optional, List
+
+
+class AbstractUserRepository(ABC):
+    """Interface du UserRepository dans le domaine"""
+
+    def exists(self, email: str) -> bool:
+        return self._exists(email)
+
+    def get_by_email(self, email: str) -> Optional[User]:
+        return self._get_by_email(email)
+
+    def update(self, user: User) -> User:
+        return self._save(user)
+
+    def get_by_id(self, user_id: str) -> Optional[User]:
+        return self._get_by_id(user_id)
+
+    def list(self) -> List[User]:
+        return self._list()
+
+    def save(self, user: User) -> User:
+        return self._save(user)
+
+    @abstractmethod
+    def _get_by_email(self, email: str) -> Optional[User]:
+        pass
+
+    @abstractmethod
+    def _get_by_id(self, user_id: str) -> Optional[User]:
+        pass
+
+    @abstractmethod
+    def _list(self) -> List[User]:
+        pass
+
+    @abstractmethod
+    def _save(self, user: User) -> User:
+        pass
+
+```
+
+Puis deux implémentations :
+
+🔹 En mémoire (tests unitaires)
+
+```
+
+class InMemoryRepository(AbstractUserRepository):
+    def __init__(self):
+        self._users = []
+
+    def _exists(self, email: str) -> bool:
+        return any(user.email == email for user in self._users)
+
+    def _get_by_email(self, email: str) -> Optional[User]:
+        return next((user for user in self._users if user.email == email), None)
+
+    def _get_by_id(self, user_id: str) -> Optional[User]:
+        return next((user for user in self._users if user.id == user_id), None)
+
+    def _list(self) -> List[User]:
+        return self._users
+
+    def _save(self, user: User) -> User:
+        self._users.append(user)
+        return user
+
+```
+Avec Django ORM (prod)
+```
+from users.core.models import User
+from interface_django.account.models import UserModel
+from users.adapters.repository import AbstractUserRepository
+from typing import Optional, List
+
+
+class DjangoUserRepository(AbstractUserRepository):
+    def exists(self, email: str) -> bool:
+        return UserModel.objects.filter(email=email).exists()
+
+    def _get_by_email(self, email: str) -> Optional[User]:
+        obj = UserModel.objects.filter(email=email).first()
+        return obj.to_domain() if obj else None
+
+    def _get_by_id(self, user_id: str) -> Optional[User]:
+        obj = UserModel.objects.filter(id=user_id).first()
+        return obj.to_domain() if obj else None
+
+    def _list(self) -> List[User]:
+        return [u.to_domain() for u in UserModel.objects.all()]
+
+    def _save(self, user: User) -> User:
+        obj = UserModel.from_domain(user)
+        obj.save()
+        return obj.to_domain()
+
+    def _exists(self, email: str) -> bool:
+        return self.exists(email)
+
+```
+
+Résultat :
+
+Dans les tests unitaires : on passes InMemoryUserRepository() → rapide, sans DB.
+
+Dans Django (prod) : on passes DjangoUserRepository() → ça persiste en DB.
+
+Le domaine n’a aucune idée de ce qu’il y a derrière.
+
+
+## Service layer
+
+
+
+
+
+
+
 
 Ce mini POC illustre comment appliquer une architecture **Domain Driven Design (DDD)** avec **Django**.  
 L’objectif est de séparer clairement :
